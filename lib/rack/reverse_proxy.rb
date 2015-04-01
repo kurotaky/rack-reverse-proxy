@@ -17,7 +17,7 @@ module Rack
 
     def call(env)
       rackreq = Rack::Request.new(env)
-      matcher = get_matcher(rackreq.fullpath, extract_http_request_headers(rackreq.env), rackreq)
+      matcher = get_matcher(rackreq.fullpath, Proxy.extract_http_request_headers(rackreq.env), rackreq)
       return @app.call(env) if matcher.nil?
 
       if @global_options[:newrelic_instrumentation]
@@ -43,7 +43,7 @@ module Rack
       target_request = Net::HTTP.const_get(source_request.request_method.capitalize).new(uri.request_uri)
 
       # Setup headers
-      target_request_headers = extract_http_request_headers(source_request.env)
+      target_request_headers = Proxy.extract_http_request_headers(source_request.env)
 
       if options[:preserve_host]
         target_request_headers['HOST'] = "#{uri.host}:#{uri.port}"
@@ -74,12 +74,12 @@ module Rack
       target_response.use_ssl = "https" == uri.scheme
 
       # Let rack set the transfer-encoding header
-      response_headers = target_response.headers
+      response_headers = Rack::Utils::HeaderHash.new Proxy.normalize_headers target_response.headers
       response_headers.delete('transfer-encoding')
 
       # Replace the location header with the proxy domain
       if response_headers['location'] && options[:replace_response_host]
-        response_location = URI(response_headers['location'][0])
+        response_location = URI(response_headers['location'])
         response_location.host = source_request.host
         response_headers['location'] = response_location.to_s
       end
